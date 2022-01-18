@@ -1,70 +1,226 @@
-# Getting Started with Create React App
+# How did we get here?
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+### Create a React app
+```
+$ npx create-react-app react-router-tutorial
+```
+### Install react-router dependencies
+```
+$ cd react-router-tutorial
+$ yarn add react-router-dom@6
+```
+### Complete switch from npm to yarn
+```
+$ rm package-lock.json
+```
+### Get rid of boilerplate stuff
+Basically want `index.js` and `App.js` to be extremely boring.
 
-## Available Scripts
+### Startup the app
+```
+$ yarn start
+```
+## Introduce React-Router
+Following along with the tutorial at the official React-Router site:
+https://reactrouter.com/docs/en/v6/getting-started/tutorial#tutorial
 
-In the project directory, you can run:
+### Connect the URL
+Need to import `BrowserRouter` and render it around your entire app:
+```javascript
+// in src/index.js
+import { BrowserRouter } from "react-router-dom";
+...
+render(
+  <BrowserRouter>
+      <App />
+  </BrowserRouter>, 
+  rootElement
+);
+```
 
-### `npm start`
+### Add Some Links
+```javascript
+// in src/App.js
+import { Link } from "react-router-dom";
+...
+  <Link to="/invoices">Invoices</Link> |{" "}
+  <Link to="/expenses">Expenses</Link>
+```
+React Router is now controlling the URL!
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Tell React-Router how to render
+Create files that render the routes (`src/routes/expenses.js` and `src/routes/invoices.js`).
+```javascript
+// in index.js
+...
+import Expenses from "./routes/expenses";
+import Invoices from "./routes/invoices";
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+render(
+    <BrowserRouter>
+        <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="expenses" element={<Expenses />} />
+            <Route path="invoices" element={<Invoices />} />
+        </Routes>
+    </BrowserRouter>,
+    rootElement
+);
+```
+### Nested Routes
+Repeat the shared layout that we have in `App.js` in each of the routes by introducing and "Outlet".
 
-### `npm test`
+First, nest the routes:
+```javascript
+// in index.js
+render(
+    <BrowserRouter>
+        <Routes>
+            <Route path="/" element={<App />}>
+              <Route path="expenses" element={<Expenses />} />
+              <Route path="invoices" element={<Invoices />} />
+            </Route>
+        </Routes>
+    </BrowserRouter>,
+    rootElement
+);
+```
+See the difference there? When routes have children, 2 things happen:
+1. The URLs are nested (`"/" + "expenses"` and `"/" + "invoices"`)
+2. The UI components are nested for shared layout when the child route matches. 
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+However, before (2) will work, we need to render an `Outlet` in the `App.js` "parent" route. This tells React where the content of the child routes should render in relation to their parent.
+```javascript
+// in App.js
+return (
+  <div>
+...
+    <nav>
+      <Link to="/invoices">Invoices</Link> |{" "}
+      <Link to="/expenses">Expenses</Link>
+    </nav>
+    <Outlet />
+  </div>
+);
+```
+### Add a "No Match" route
+It's good practice to always handle the "no match" case. You can handle this in the config of the `BrowserRouter`.
+```javascript
+// in index.js
+<Routes>
+    <Route path="/" element={<App/>}>
+        <Route path="expenses" element={<Expenses/>}/>
+        <Route path="invoices" element={<Invoices/>}/>
+        <Route path="*"
+               element={
+                   <main style={{padding: "1rem"}}>
+                       <p>Sadly, there's nothing here.</p>
+                   </main>
+               }
+        />
+    </Route>
+</Routes>
+```
+The `"*"` has special meaning here. It will only match when no other routes do.
 
-### `npm run build`
+And since it is included in the nested routes, it will render in the `Outlet` of the parent route, just like its other siblings.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Reading URL Params
+To add a route for a specific invoice, we want to pull the invoice number off of the URL.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Create a new nested route under the existing "invoices" route:
+```javascript
+// in src/index.js
+...
+<Routes>
+    <Route path="/" element={<App />}>
+        <Route path="expenses" element={<Expenses />} />
+        <Route path="invoices" element={<Invoices />}>
+            <Route path=":invoiceId" element={<Invoice />} />
+        </Route>
+...
+</Routes>
+```
+This new nested route will match all URLs like "/invoices/2005" and "/invoices/1998". The `:invoiceId` part fo the path is a "URL param", meaning it can match any value as long as it fits the pattern.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Note that because the route is nested, the UI will be too, but in order to display the invoice component, we need to add an `Outlet` to the parent layout route (see `src/routes/invoices.js`).
 
-### `npm run eject`
+You access the value of the URL param using a hook into React-Router:
+```javascript
+// in src/routes/invoice.js
+import { useParams } from "react-router-dom";
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+export default function Invoice() {
+    let params = useParams();
+    return <h2>Invoice: {params.invoiceId}</h2>;
+}
+```
+Note that the key of the param on the `params` object is the same as the dynamic segment of the route path:
+```javascript
+:invoiceId -> params.invoiceId
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Index Routes
+Index routes match when a parent route matches, but none of the other children routes match. 
+```javascript
+// in src/index.js
+...
+<Route path="invoices" element={<Invoices/>}>
+    <Route index element={
+        <p>Please select an invoice.</p>
+    }/>
+    <Route path=":invoiceId" element={<Invoice/>}/>
+</Route>
+...
+```
+So in this case the index route will be displayed in the parent's `Outlet` when the URL does not include anything after "/invoices".
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Active Links
+To indicate the link that is currently active, use `NavLink`, and base the style on the `isActive` value that `NavLink` passes into the `style` or `className` function. So something like:
+```javascript
+<NavLink style={({ isActive }) => {
+             return {
+                 display: "block",
+                 margin: "1rem 0",
+                 color: isActive ? "red" : "",
+             };
+         }} ... />
+```
+or
+```javascript
+<NavLink className={({ isActive }) => isActive ? "red" : "blue"} />
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Search Params
+Access search params (URL parameters after the `"?"`) with the `useSearchParams` hook. It works a lot like `React.useState()` but stores and sets the state in the URL search params instead of in memory.
+```javascript
+const [searchParams, setSearchParams] = useSearchParams();
+```
 
-## Learn More
+### Custom Behavior
+Can access attributes about what React-Router thinks the current location is via the `useLocation` hook.
+```javascript
+const location = useLocation();
+```
+A location looks something like this:
+```javascript
+{
+  pathname: "/invoices",
+  search: "?filter=sa",
+  hash: "",
+  state: null,
+  key: "ae4cz2j"
+}
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Navigating Programmatically
+What if we want to add a button that marks an invoice as paid and then navigates to the index route?
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Can access a function that tells the router to navigate to a new route via the `useNavigation` hook.
+```javascript
+const navigate = useNavigate();
+```
+Then later, most likely in an `onClick` handler, can navigate to a new route with:
+```javascript
+navigate("/invoices");
+```
